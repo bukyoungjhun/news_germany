@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>독일 뉴스 — 일간 기사</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="layout">
+    <nav class="list-panel" aria-label="기사 목록">
+      <ul class="article-list" id="article-list"></ul>
+    </nav>
+
+    <article class="detail-panel empty" id="detail-panel" aria-live="polite"></article>
+  </main>
+
+  <script>
+(function () {
+  const listEl = document.getElementById("article-list");
+  const detailEl = document.getElementById("detail-panel");
+
+  function el(tag, props, children) {
+    const n = document.createElement(tag);
+    if (props)
+      Object.entries(props).forEach(([k, v]) => {
+        if (k === "class") n.className = v;
+        else if (k.startsWith("data-")) n.setAttribute(k, v);
+        else n[k] = v;
+      });
+    (children || []).forEach((c) => {
+      if (typeof c === "string") n.appendChild(document.createTextNode(c));
+      else if (c) n.appendChild(c);
+    });
+    return n;
+  }
+
+  async function loadManifest() {
+    const res = await fetch("data/manifest.json", { cache: "no-cache" });
+    if (!res.ok) throw new Error("manifest.json " + res.status);
+    return res.json();
+  }
+
+  function renderList(articles) {
+    listEl.innerHTML = "";
+    articles.forEach(function (item) {
+      const btn = el("button", { type: "button" }, [
+        el("span", { class: "item-date" }, [item.date || ""]),
+        el("span", { class: "item-title" }, [item.title || "(제목 없음)"]),
+      ]);
+      btn.addEventListener("click", function () {
+        selectArticle(item, btn);
+      });
+      listEl.appendChild(el("li", null, [btn]));
+    });
+  }
+
+  function setActive(btn) {
+    listEl.querySelectorAll("button").forEach(function (b) {
+      b.classList.remove("active");
+    });
+    if (btn) btn.classList.add("active");
+  }
+
+  async function selectArticle(item, btn) {
+    setActive(btn);
+    detailEl.classList.remove("empty");
+    detailEl.innerHTML = "";
+    try {
+      const res = await fetch(item.path, { cache: "no-cache" });
+      if (!res.ok) throw new Error(item.path + " " + res.status);
+      const data = await res.json();
+      renderDetail(data);
+    } catch (e) {
+      detailEl.innerHTML = "";
+    }
+  }
+
+  /** 본문: 빈 줄로 단락 구분 */
+  function renderArticleBody(text) {
+    const wrap = el("div", { class: "body-text article-body" });
+    if (!text || !String(text).trim()) return wrap;
+    String(text)
+      .split(/\n\s*\n/)
+      .forEach(function (block) {
+        const t = block.replace(/\n/g, " ").trim();
+        if (t) wrap.appendChild(el("p", null, [t]));
+      });
+    return wrap;
+  }
+
+  function renderDetail(data) {
+    detailEl.innerHTML = "";
+    const titleText = (data.title && String(data.title).trim()) || "";
+    const header = el("header", null, [el("h1", null, [titleText])]);
+    const body = renderArticleBody(data.body || "");
+    const wrap = el("div", { class: "article-detail" }, [header, body]);
+    detailEl.appendChild(wrap);
+  }
+
+  loadManifest()
+    .then(function (m) {
+      const articles = m.articles || [];
+      renderList(articles);
+    })
+    .catch(function () {
+      listEl.innerHTML = "";
+      detailEl.innerHTML = "";
+    });
+})();
+  </script>
+</body>
+</html>
